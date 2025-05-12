@@ -224,6 +224,7 @@ static err_t tcp_server_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, er
         "<form action='./collect'><button>Coletar</button></form>\n"
         "<p class=\"subtitle\">Bateria: %.2f %%</p>\n"
         "<p class=\"subtitle\">Materiais coletados: %d</p>\n"
+        "<p class=\"subtitle\">Temperatura do Robo: %.2f &deg;C</p>\n"
         "</body>\n"
         "</html>\n",
         100.0, 5); // Aqui vão as variaveis: bateria e count_materiais
