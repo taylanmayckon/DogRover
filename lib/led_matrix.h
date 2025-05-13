@@ -26,10 +26,7 @@ uint32_t urgb_u32(double r, double g, double b);
 
 void set_leds(float intensidade);
 
-void green_animation(uint frame_index);
-
-void yellow_animation(float intensidade);
-
-void red_animation(float intensidade);
+// Função genérica para atualiza matriz
+void matrix_update_leds(Led_frame *frame, float intensidade);
 
 #endif

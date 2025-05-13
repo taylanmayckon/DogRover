@@ -33,11 +33,19 @@
 #define LED_GREEN_PIN 11                // GPIO11 - LED verde
 #define LED_RED_PIN 13                  // GPIO13 - LED vermelho
 
+// Constantes para a matriz de leds
+#define IS_RGBW false
+#define LED_MATRIX_PIN 7
+
 // Definições da I2C
 #define I2C_PORT i2c1
 #define I2C_SDA 14
 #define I2C_SCL 15
 #define endereco 0x3C
+
+// Variáveis da PIO declaradas no escopo global
+PIO pio;
+uint sm;
 
 // PROTÓTIPOS DE FUNÇÕES =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 // Inicializar os Pinos GPIO para acionamento dos LEDs da BitDogLab
@@ -179,7 +187,7 @@ static err_t tcp_server_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, er
         "<p class=\"subtitle\">Temperatura do Robo: %.2f &deg;C</p>\n"
         "</body>\n"
         "</html>\n",
-        100.0, 5); // Aqui vão as variaveis: bateria e count_materiais
+        100.0, 5, temperature); // Aqui vão as variaveis: bateria, count_materiais, temperatura
 
     // Escreve dados para envio (mas não os envia imediatamente).
     tcp_write(tpcb, html, strlen(html), TCP_WRITE_FLAG_COPY);
@@ -198,6 +206,7 @@ static err_t tcp_server_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, er
 
 
 // TASKS CRIADAS =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+// Task do servidor web
 void vWebServerTask(){
     //Inicializa a arquitetura do cyw43
     while (cyw43_arch_init()){
@@ -253,12 +262,42 @@ void vWebServerTask(){
         * quando se utiliza um estilo de sondagem pico_cyw43_arch 
         */
         cyw43_arch_poll(); // Necessário para manter o Wi-Fi ativo
-        sleep_ms(100);      // Reduz o uso da CPU
+        vTaskDelay(pdMS_TO_TICKS(100));      // Reduz o uso da CPU
     }
 
     //Desligar a arquitetura CYW43.
     cyw43_arch_deinit();
     return;
+}
+
+// Task para controlar a matriz de LEDs endereçáveis
+void vLedMatrixTask(){
+    // Inicializando a PIO
+    pio = pio0;
+    sm = 0;
+    uint offset = pio_add_program(pio, &ws2812_program);
+    ws2812_program_init(pio, sm, offset, LED_MATRIX_PIN, 800000, IS_RGBW);
+
+    float matrix_intensity;
+
+    Led_color green = {0, 255, 0};
+    Led_color blue = {0, 0, 255};
+    Led_color orange = {255, 165, 0};
+    Led_color off = {0, 0, 0};
+
+    // Matriz para gerar estaticamente as cores
+    Led_frame led_matrix= {{
+        off,  off,    orange, orange, off, 
+        off,  green,  off,    off,    off,  
+        off,  off,    off,    off,    off,  
+        off,  orange, off,    blue,   off,  
+        blue, off,    off,    orange, off,  
+    }};
+
+    while(true){
+        matrix_update_leds(&led_matrix, 0.01);
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
 }
 
 
@@ -276,8 +315,8 @@ void main(){
 
     // Iniciando as Tasks
     xTaskCreate(vWebServerTask, "Web Server Task", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
-
-
+    xTaskCreate(vLedMatrixTask, "Led Matrix Task", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
+ 
     vTaskStartScheduler();
     panic_unsupported();
 }

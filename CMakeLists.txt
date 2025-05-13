@@ -30,7 +30,7 @@ project(DogRover C CXX ASM)
 
 pico_sdk_init()
 
-add_executable(DogRover DogRover.c )
+add_executable(DogRover DogRover.c lib/led_matrix.c)
 
 pico_set_program_name(DogRover "DogRover")
 pico_set_program_version(DogRover "0.1")
