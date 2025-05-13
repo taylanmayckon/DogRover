@@ -1,6 +1,11 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
 
+// Includes do FreeRTOS
+#include "FreeRTOS.h"
+#include "FreeRTOSConfig.h"
+#include "task.h"
+
 #include <string.h>              // Biblioteca manipular strings
 #include <stdlib.h>              // funções para realizar várias operações, incluindo alocação de memória dinâmica (malloc)
 
@@ -11,6 +16,13 @@
 #include "lwip/tcp.h"            // Lightweight IP stack - fornece funções e estruturas para trabalhar com o protocolo TCP
 #include "lwip/netif.h"          // Lightweight IP stack - fornece funções e estruturas para trabalhar com interfaces de rede (netif)
 
+// Imports para configuração dos periféricos da BitDogLab
+#include "led_matrix.h"
+#include "ssd1306.h"
+#include "hardware/pwm.h"
+#include "hardware/i2c.h"
+#include "font.h"
+
 // Credenciais WIFI - Tome cuidado se publicar no github!
 #define WIFI_SSID "Jr telecom _ Taylan"
 #define WIFI_PASSWORD "Suta3021"
@@ -20,6 +32,12 @@
 #define LED_BLUE_PIN 12                 // GPIO12 - LED azul
 #define LED_GREEN_PIN 11                // GPIO11 - LED verde
 #define LED_RED_PIN 13                  // GPIO13 - LED vermelho
+
+// Definições da I2C
+#define I2C_PORT i2c1
+#define I2C_SDA 14
+#define I2C_SCL 15
+#define endereco 0x3C
 
 // PROTÓTIPOS DE FUNÇÕES =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 // Inicializar os Pinos GPIO para acionamento dos LEDs da BitDogLab
@@ -64,6 +82,7 @@ static err_t tcp_server_accept(void *arg, struct tcp_pcb *newpcb, err_t err){
 
 // Tratamento do request do usuário - digite aqui
 void user_request(char **request){
+    // Inicialmente tá só ligando/desligando leds para depurar na placa
 
     // Seta para cima
     if (strstr(*request, "GET /up") != NULL){
