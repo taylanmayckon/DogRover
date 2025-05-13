@@ -197,20 +197,13 @@ static err_t tcp_server_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, er
 }
 
 
-
-// FUNÇÃO PRINCIPAL =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-int main(){
-    //Inicializa todos os tipos de bibliotecas stdio padrão presentes que estão ligados ao binário.
-    stdio_init_all();
-
-    // Inicializar os Pinos GPIO para acionamento dos LEDs da BitDogLab
-    gpio_led_bitdog();
-
+// TASKS CRIADAS =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+void vWebServerTask(){
     //Inicializa a arquitetura do cyw43
     while (cyw43_arch_init()){
         printf("Falha ao inicializar Wi-Fi\n");
         sleep_ms(100);
-        return -1;
+        return;
     }
 
     // GPIO do CI CYW43 em nível baixo
@@ -224,7 +217,7 @@ int main(){
     while (cyw43_arch_wifi_connect_timeout_ms(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_AES_PSK, 20000)){
         printf("Falha ao conectar ao Wi-Fi\n");
         sleep_ms(100);
-        return -1;
+        return;
     }
     printf("Conectado ao Wi-Fi\n");
 
@@ -237,13 +230,13 @@ int main(){
     struct tcp_pcb *server = tcp_new();
     if (!server){
         printf("Falha ao criar servidor TCP\n");
-        return -1;
+        return;
     }
 
     //vincula um PCB (Protocol Control Block) TCP a um endereço IP e porta específicos.
     if (tcp_bind(server, IP_ADDR_ANY, 80) != ERR_OK){
         printf("Falha ao associar servidor TCP à porta 80\n");
-        return -1;
+        return;
     }
 
     // Coloca um PCB (Protocol Control Block) TCP em modo de escuta, permitindo que ele aceite conexões de entrada.
@@ -252,10 +245,6 @@ int main(){
     // Define uma função de callback para aceitar conexões TCP de entrada. É um passo importante na configuração de servidores TCP.
     tcp_accept(server, tcp_server_accept);
     printf("Servidor ouvindo na porta 80\n");
-
-    // Inicializa o conversor ADC
-    adc_init();
-    adc_set_temp_sensor_enabled(true);
 
     while (true){
         /* 
@@ -269,5 +258,26 @@ int main(){
 
     //Desligar a arquitetura CYW43.
     cyw43_arch_deinit();
-    return 0;
+    return;
+}
+
+
+// FUNÇÃO PRINCIPAL =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+void main(){
+    //Inicializa todos os tipos de bibliotecas stdio padrão presentes que estão ligados ao binário.
+    stdio_init_all();
+
+    // Inicializar os Pinos GPIO para acionamento dos LEDs da BitDogLab
+    gpio_led_bitdog();
+
+    // Inicializa o conversor ADC
+    adc_init();
+    adc_set_temp_sensor_enabled(true);
+
+    // Iniciando as Tasks
+    xTaskCreate(vWebServerTask, "Web Server Task", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
+
+
+    vTaskStartScheduler();
+    panic_unsupported();
 }
