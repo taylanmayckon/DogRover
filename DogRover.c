@@ -46,6 +46,8 @@
 // Variáveis da PIO declaradas no escopo global
 PIO pio;
 uint sm;
+// Booleano para o display
+bool cor = true;
 
 // PROTÓTIPOS DE FUNÇÕES =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 // Inicializar os Pinos GPIO para acionamento dos LEDs da BitDogLab
@@ -111,6 +113,10 @@ void user_request(char **request){
     // Coletar
     else if (strstr(*request, "GET /collect") != NULL){
         gpio_put(LED_RED_PIN, 1);
+    }
+    // Automatico
+    else if (strstr(*request, "GET /local") != NULL){
+        gpio_put(LED_RED_PIN, 0);
     }
 
     // Relacionados ao módulo Wi-Fi
@@ -182,12 +188,13 @@ static err_t tcp_server_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, er
         "</div>\n"
         "<p class=\"subtitle\">Acoes</p>\n"
         "<form action='./collect'><button>Coletar</button></form>\n"
+        "<form action='./local'><button>Local</button></form>\n"
         "<p class=\"subtitle\">Bateria: %.2f %%</p>\n"
         "<p class=\"subtitle\">Materiais coletados: %d</p>\n"
         "<p class=\"subtitle\">Temperatura do Robo: %.2f &deg;C</p>\n"
         "</body>\n"
         "</html>\n",
-        100.0, 5, temperature); // Aqui vão as variaveis: bateria, count_materiais, temperatura
+        67.0, 5, temperature); // Aqui vão as variaveis: bateria, count_materiais, temperatura
 
     // Escreve dados para envio (mas não os envia imediatamente).
     tcp_write(tpcb, html, strlen(html), TCP_WRITE_FLAG_COPY);
@@ -270,6 +277,7 @@ void vWebServerTask(){
     return;
 }
 
+
 // Task para controlar a matriz de LEDs endereçáveis
 void vLedMatrixTask(){
     // Inicializando a PIO
@@ -301,6 +309,45 @@ void vLedMatrixTask(){
 }
 
 
+// Task para controlar o display OLED
+void vDisplayOLEDTask(){
+    // Configurando a I2C
+    i2c_init(I2C_PORT, 400 * 1000);
+
+    gpio_set_function(I2C_SDA, GPIO_FUNC_I2C);                    // Set the GPIO pin function to I2C
+    gpio_set_function(I2C_SCL, GPIO_FUNC_I2C);                    // Set the GPIO pin function to I2C
+    gpio_pull_up(I2C_SDA);                                        // Pull up the data line
+    gpio_pull_up(I2C_SCL);                                        // Pull up the clock line
+    ssd1306_t ssd;                                                // Inicializa a estrutura do display
+    ssd1306_init(&ssd, WIDTH, HEIGHT, false, endereco, I2C_PORT); // Inicializa o display
+    ssd1306_config(&ssd);                                         // Configura o display
+    ssd1306_send_data(&ssd);                                      // Envia os dados para o display
+    // Limpa o display. O display inicia com todos os pixels apagados.
+    ssd1306_fill(&ssd, false);
+    ssd1306_send_data(&ssd);
+
+    while(true){
+        ssd1306_fill(&ssd, false); // Limpa o display
+
+        // Frame que será reutilizado para todos
+        ssd1306_rect(&ssd, 0, 0, 128, 64, cor, !cor);
+        // Nome superior
+        ssd1306_rect(&ssd, 0, 0, 128, 12, cor, cor); // Fundo preenchido
+        ssd1306_draw_string(&ssd, "DogRover", 4, 3, true); // String: Semaforo
+        ssd1306_draw_string(&ssd, "TM", 107, 3, true);
+        // Bateria
+        ssd1306_draw_string(&ssd, "BATERIA: 67", 4, 16, false);
+        // Status
+        ssd1306_draw_string(&ssd, "STATUS: COLETA", 4, 28, false);
+        // Coletas
+        ssd1306_draw_string(&ssd, "COLETAS: 5", 4, 40, false);
+
+        ssd1306_send_data(&ssd); // Envia os dados para o display, atualizando o mesmo
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+
+
 // FUNÇÃO PRINCIPAL =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 void main(){
     //Inicializa todos os tipos de bibliotecas stdio padrão presentes que estão ligados ao binário.
@@ -316,7 +363,8 @@ void main(){
     // Iniciando as Tasks
     xTaskCreate(vWebServerTask, "Web Server Task", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
     xTaskCreate(vLedMatrixTask, "Led Matrix Task", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
- 
+    xTaskCreate(vDisplayOLEDTask, "Display OLED Task", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL); 
+
     vTaskStartScheduler();
     panic_unsupported();
 }
