@@ -49,6 +49,36 @@ uint sm;
 // Booleano para o display
 bool cor = true;
 
+// Para descrever o rover
+typedef struct {
+    int position;
+    int collects;
+    float battery;
+    bool alert;
+} Rover;
+
+// Iniciando o rover centralizado e com tudo zerado
+Rover rover = {12, 0, 100.00, false};
+
+Led_frame led_matrix; // Matriz para gerar as cores
+
+typedef enum{ // Tipos de célula
+    CELL_FREE,
+    CELL_OBSTACLE,
+    CELL_PLAYER,
+    CELL_COLLECT
+} Celltype;
+
+Celltype grid[NUM_PIXELS] = { // Grid com o conteúdo de cada célula (LED)
+    CELL_FREE, CELL_FREE, CELL_OBSTACLE, CELL_OBSTACLE, CELL_FREE,
+    CELL_FREE, CELL_FREE, CELL_FREE,     CELL_FREE,     CELL_FREE,
+    CELL_FREE, CELL_FREE,  CELL_PLAYER,  CELL_FREE,     CELL_FREE,
+    CELL_FREE, CELL_OBSTACLE, CELL_FREE, CELL_COLLECT,  CELL_FREE,
+    CELL_COLLECT, CELL_FREE, CELL_FREE,  CELL_OBSTACLE, CELL_FREE
+};
+
+
+
 // PROTÓTIPOS DE FUNÇÕES =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 // Inicializar os Pinos GPIO para acionamento dos LEDs da BitDogLab
 void gpio_led_bitdog(void);
@@ -94,21 +124,46 @@ static err_t tcp_server_accept(void *arg, struct tcp_pcb *newpcb, err_t err){
 void user_request(char **request){
     // Inicialmente tá só ligando/desligando leds para depurar na placa
 
+    grid[rover.position] = CELL_FREE; // Prepara o grid para o movimento
     // Seta para cima
     if (strstr(*request, "GET /up") != NULL){
-        gpio_put(LED_BLUE_PIN, 1);
+        if(rover.position>=5){ // Restringe a posição para a anterior, caso o movimento vá além do permitido
+            rover.position-=5;
+        }
+        else{
+            rover.alert=true;
+        }
     }
     // Seta para baixo
     else if (strstr(*request, "GET /down") != NULL){
-        gpio_put(LED_BLUE_PIN, 0);
+        if(rover.position<=19){ // Restringe a posição para a anterior, caso o movimento vá além do permitido
+            rover.position+=5;
+        }
+        else{
+            rover.alert=true;
+        }
     }
     // Seta para a esquerda
     else if (strstr(*request, "GET /left") != NULL){
-        gpio_put(LED_GREEN_PIN, 1);
+        // Quando permite o movimento
+        if(rover.position % 5 != 0){
+            rover.position--;
+        }
+        // Movimento invalido
+        else{
+            rover.alert = true;
+        }
     }
     // Seta para a direita
     else if (strstr(*request, "GET /right") != NULL){
-        gpio_put(LED_GREEN_PIN, 0);
+        // Quando permite o movimento
+        if(rover.position % 5 != 4){
+            rover.position++;
+        }
+        // Movimento invalido
+        else{
+            rover.alert = true;
+        }
     }
     // Coletar
     else if (strstr(*request, "GET /collect") != NULL){
@@ -126,6 +181,8 @@ void user_request(char **request){
     else if (strstr(*request, "GET /off") != NULL){
         cyw43_arch_gpio_put(LED_PIN, 0);
     }
+
+    grid[rover.position] = CELL_PLAYER; // Atualiza o GRID com a nova posição do player
 };
 
 
@@ -194,7 +251,7 @@ static err_t tcp_server_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, er
         "<p class=\"subtitle\">Temperatura do Robo: %.2f &deg;C</p>\n"
         "</body>\n"
         "</html>\n",
-        67.0, 5, temperature); // Aqui vão as variaveis: bateria, count_materiais, temperatura
+        rover.battery, rover.collects, temperature); // Aqui vão as variaveis: bateria, count_materiais, temperatura
 
     // Escreve dados para envio (mas não os envia imediatamente).
     tcp_write(tpcb, html, strlen(html), TCP_WRITE_FLAG_COPY);
@@ -279,6 +336,31 @@ void vWebServerTask(){
 
 
 // Task para controlar a matriz de LEDs endereçáveis
+// Função para atualizar a matriz de LEDs com as cores do grid
+void update_led_matrix_from_grid(){
+    Led_color green = {0, 255, 0};
+    Led_color blue = {0, 0, 255};
+    Led_color orange = {255, 165, 0};
+    Led_color off = {0, 0, 0};
+
+    for (int i = 0; i < NUM_PIXELS; i++) {
+        switch (grid[i]) {
+            case CELL_FREE:
+                led_matrix.led[i] = off;
+                break;
+            case CELL_OBSTACLE:
+                led_matrix.led[i] = orange;
+                break;
+            case CELL_PLAYER:
+                led_matrix.led[i] = green;
+                break;
+            case CELL_COLLECT:
+                led_matrix.led[i] = blue;
+                break;
+        }
+    }
+}
+
 void vLedMatrixTask(){
     // Inicializando a PIO
     pio = pio0;
@@ -293,16 +375,11 @@ void vLedMatrixTask(){
     Led_color orange = {255, 165, 0};
     Led_color off = {0, 0, 0};
 
-    // Matriz para gerar estaticamente as cores
-    Led_frame led_matrix= {{
-        off,  off,    orange, orange, off, 
-        off,  green,  off,    off,    off,  
-        off,  off,    off,    off,    off,  
-        off,  orange, off,    blue,   off,  
-        blue, off,    off,    orange, off,  
-    }};
-
     while(true){
+        // Atualiza as cores na matriz RGB
+        update_led_matrix_from_grid();
+
+        // Envia para a matriz física da BitDogLab
         matrix_update_leds(&led_matrix, 0.01);
         vTaskDelay(pdMS_TO_TICKS(100));
     }
@@ -346,6 +423,9 @@ void vDisplayOLEDTask(){
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
+
+
+
 
 
 // FUNÇÃO PRINCIPAL =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
