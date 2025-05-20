@@ -64,10 +64,11 @@ typedef struct {
     float battery;
     bool alert_obstacle;
     bool alert_collect;
+    bool web;
 } Rover;
 
 // Iniciando o rover centralizado e com tudo zerado
-Rover rover = {12, 0, 100.00, false};
+Rover rover = {12, 0, 100.00, false, false, true};
 
 Led_frame led_matrix; // Matriz para gerar as cores
 
@@ -106,6 +107,32 @@ void user_request(char **request);
 
 
 // FUNÇÕES AUXILIARES =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+// String para armazenar o tempo restante do semáforo
+char converted_num; // Armazena um dígito
+char converted_string[3]; // Armazena o número convertido (2 dígitos)
+// Função que converte int para char
+void int_2_char(int num, char *out){
+    *out = '0' + num;
+}
+
+void int_2_string(int num){
+    if(num<9){ // Gera string para as menores que 10
+        int_2_char(num, &converted_num); // Converte o dígito à direita do número para char
+        converted_string[0] = '0'; // Char para melhorar o visual
+        converted_string[1] = converted_num; // Int convertido para char
+        converted_string[2] = '\0'; // Terminador nulo da String 
+    }
+    else{ // Gera a string para as maiores/iguais que 10
+        int divider = num/10; // Obtém as dezenas
+        int_2_char(divider, &converted_num);
+        converted_string[0] = converted_num;
+
+        int_2_char(num%10, &converted_num); // Obtém a parte das unidades
+        converted_string[1] = converted_num; // Int convertido para char
+        converted_string[2] = '\0'; // Terminador nulo da String
+    }
+}
+
 // Função para configurar o PWM e iniciar com 0% de DC
 void set_pwm(uint gpio, uint wrap){
     gpio_set_function(gpio, GPIO_FUNC_PWM);
@@ -146,7 +173,7 @@ void user_request(char **request){
     grid[rover.position] = CELL_FREE; // Prepara o grid para o movimento
     // Seta para cima
     if (strstr(*request, "GET /up") != NULL){
-        if(rover.position>=5){ // Restringe a posição para a anterior, caso o movimento vá além do permitido
+        if(rover.position>=5 && rover.web){ // Restringe a posição para a anterior, caso o movimento vá além do permitido
             rover.position-=5;
         }
         else{
@@ -155,7 +182,7 @@ void user_request(char **request){
     }
     // Seta para baixo
     else if (strstr(*request, "GET /down") != NULL){
-        if(rover.position<=19){ // Restringe a posição para a anterior, caso o movimento vá além do permitido
+        if(rover.position<=19 && rover.web){ // Restringe a posição para a anterior, caso o movimento vá além do permitido
             rover.position+=5;
         }
         else{
@@ -165,7 +192,7 @@ void user_request(char **request){
     // Seta para a esquerda
     else if (strstr(*request, "GET /left") != NULL){
         // Quando permite o movimento
-        if(rover.position % 5 != 0){
+        if(rover.position % 5 != 0 && rover.web){
             rover.position--;
         }
         // Movimento invalido
@@ -176,7 +203,7 @@ void user_request(char **request){
     // Seta para a direita
     else if (strstr(*request, "GET /right") != NULL){
         // Quando permite o movimento
-        if(rover.position % 5 != 4){
+        if(rover.position % 5 != 4 && rover.web){
             rover.position++;
         }
         // Movimento invalido
@@ -185,6 +212,11 @@ void user_request(char **request){
         }
     }
 
+    // Modo (web/manual)
+    else if (strstr(*request, "GET /mode") != NULL){
+        rover.web = !rover.web;
+    }
+    
     // Relacionados ao módulo Wi-Fi
     else if (strstr(*request, "GET /on") != NULL){
         cyw43_arch_gpio_put(LED_PIN, 1);
@@ -204,6 +236,7 @@ void user_request(char **request){
     }
 
     grid[rover.position] = CELL_PLAYER; // Atualiza o GRID com a nova posição do player
+
 };
 
 
@@ -264,6 +297,8 @@ static err_t tcp_server_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, er
         "<form action='./right'><button>Direita &#8594;</button></form>\n"
         "<form action='./down'><button>&#8595; Baixo</button></form>\n"
         "</div>\n"
+        "<p class=\"subtitle\">Acoes</p>\n"
+        "<form action='./mode'><button>Modo (web/bitdoglab)</button></form>\n"
         "<p class=\"subtitle\">Bateria: %.2f %%</p>\n"
         "<p class=\"subtitle\">Materiais coletados: %d</p>\n"
         "<p class=\"subtitle\">Temperatura do Robo: %.2f &deg;C</p>\n"
@@ -431,11 +466,21 @@ void vDisplayOLEDTask(){
         ssd1306_draw_string(&ssd, "DogRover", 4, 3, true); // String: Semaforo
         ssd1306_draw_string(&ssd, "TM", 107, 3, true);
         // Bateria
-        ssd1306_draw_string(&ssd, "BATERIA: 67", 4, 16, false);
-        // Status
-        ssd1306_draw_string(&ssd, "STATUS: COLETA", 4, 28, false);
+        int_2_string((int)rover.battery);
+        ssd1306_draw_string(&ssd, "BATERIA: ", 4, 16, false);
+        ssd1306_draw_string(&ssd, converted_string, 76, 16, false);
+        // Modo
+        ssd1306_draw_string(&ssd, "MODO: ", 4, 28, false);
+        if(rover.web == true){
+            ssd1306_draw_string(&ssd, "WEB", 52, 28, false);
+        }
+        else{
+            ssd1306_draw_string(&ssd, "BITDOGLAB", 52, 28, false);
+        }
         // Coletas
-        ssd1306_draw_string(&ssd, "COLETAS: 5", 4, 40, false);
+        int_2_string(rover.collects);
+        ssd1306_draw_string(&ssd, "COLETAS: ", 4, 40, false);
+        ssd1306_draw_string(&ssd, converted_string, 76, 40, false);
 
         ssd1306_send_data(&ssd); // Envia os dados para o display, atualizando o mesmo
         vTaskDelay(pdMS_TO_TICKS(100));
