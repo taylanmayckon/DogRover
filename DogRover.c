@@ -62,7 +62,8 @@ typedef struct {
     int position;
     int collects;
     float battery;
-    bool alert;
+    bool alert_obstacle;
+    bool alert_collect;
 } Rover;
 
 // Iniciando o rover centralizado e com tudo zerado
@@ -140,7 +141,7 @@ static err_t tcp_server_accept(void *arg, struct tcp_pcb *newpcb, err_t err){
 
 // Tratamento do request do usuário - digite aqui
 void user_request(char **request){
-    // Inicialmente tá só ligando/desligando leds para depurar na placa
+    int initial_pos = rover.position; // Armazena a posição inicial do rover
 
     grid[rover.position] = CELL_FREE; // Prepara o grid para o movimento
     // Seta para cima
@@ -149,7 +150,7 @@ void user_request(char **request){
             rover.position-=5;
         }
         else{
-            rover.alert=true;
+            rover.alert_obstacle=true;
         }
     }
     // Seta para baixo
@@ -158,7 +159,7 @@ void user_request(char **request){
             rover.position+=5;
         }
         else{
-            rover.alert=true;
+            rover.alert_obstacle=true;
         }
     }
     // Seta para a esquerda
@@ -169,7 +170,7 @@ void user_request(char **request){
         }
         // Movimento invalido
         else{
-            rover.alert = true;
+            rover.alert_obstacle = true;
         }
     }
     // Seta para a direita
@@ -180,7 +181,7 @@ void user_request(char **request){
         }
         // Movimento invalido
         else{
-            rover.alert = true;
+            rover.alert_obstacle = true;
         }
     }
 
@@ -194,7 +195,12 @@ void user_request(char **request){
 
     if(grid[rover.position] == CELL_COLLECT){ // Incrementa caso tenha sido feita uma coleta
         rover.collects++;
-        rover.alert=true;
+        rover.alert_collect=true;
+    }
+
+    if(grid[rover.position] == CELL_OBSTACLE){ // Gera alerta e trava o rover caso tenha obstaculo no destino
+        rover.position = initial_pos;
+        rover.alert_obstacle=true;
     }
 
     grid[rover.position] = CELL_PLAYER; // Atualiza o GRID com a nova posição do player
@@ -441,12 +447,13 @@ void vBuzzerTask(){
     set_pwm(BUZZER_A, wrap);
     set_pwm(BUZZER_B, wrap);
 
-    int buzzer_count = 0;
+    int buzzer_obstacle_count = 0;
+    int buzzer_collect_count = 0;
 
     while(true){
-        // Quando algum alerta é acionado
-        if(rover.alert){
-            if(buzzer_count%2==0){
+        // Alerta de obstáculo
+        if(rover.alert_obstacle){
+            if(buzzer_obstacle_count%2==0){
                 pwm_set_gpio_level(BUZZER_A, wrap*0.05);
                 pwm_set_gpio_level(BUZZER_B, wrap*0.05);
             }
@@ -454,11 +461,29 @@ void vBuzzerTask(){
                 pwm_set_gpio_level(BUZZER_A, 0);
                 pwm_set_gpio_level(BUZZER_B, 0);
             }
-            buzzer_count++;
+            buzzer_obstacle_count++;
 
-            if(buzzer_count==4){ // Condição que para o alerta sonoro
-                buzzer_count=0;
-                rover.alert=false;
+            if(buzzer_obstacle_count==4){ // Condição que para o alerta sonoro
+                buzzer_obstacle_count=0;
+                rover.alert_obstacle=false;
+            }
+        }
+
+        // Alerta de coleta
+        else if(rover.alert_collect){
+            if(buzzer_collect_count<4 || buzzer_collect_count%2==0){
+                pwm_set_gpio_level(BUZZER_A, wrap*0.05);
+                pwm_set_gpio_level(BUZZER_B, wrap*0.05);
+            }
+            else{
+                pwm_set_gpio_level(BUZZER_A, 0);
+                pwm_set_gpio_level(BUZZER_B, 0);
+            }
+            buzzer_collect_count++;
+            
+            if(buzzer_collect_count==8){
+                buzzer_collect_count=0;
+                rover.alert_collect=false;
             }
         }
 
