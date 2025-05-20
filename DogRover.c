@@ -24,8 +24,8 @@
 #include "font.h"
 
 // Credenciais WIFI - Tome cuidado se publicar no github!
-#define WIFI_SSID "Jr telecom _ Taylan"
-#define WIFI_PASSWORD "Suta3021"
+#define WIFI_SSID "SSID DA REDE"
+#define WIFI_PASSWORD "SENHA DA REDE"
 
 // Definição dos pinos dos LEDs
 #define LED_PIN CYW43_WL_GPIO_LED_PIN   // GPIO do CI CYW43
