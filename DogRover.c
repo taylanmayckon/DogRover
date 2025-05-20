@@ -637,7 +637,7 @@ void vLedRGBTask(){
 
     while(true){
         // Aumenta a intensidade do LED azul conforme a bateria descarrega
-        pwm_set_gpio_level(LED_BLUE_PIN, wrap*(1-(rover.battery/100)));
+        pwm_set_gpio_level(LED_BLUE_PIN, wrap*(1-(rover.battery/100))/4);
 
         // Pisca o led nos alertas
         if(rover.alert_obstacle){
