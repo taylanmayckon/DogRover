@@ -627,6 +627,37 @@ void vBitDogLabModeTask(){
     }
 }
 
+void vLedRGBTask(){
+    // Inicializando os pinos do Led RGB como PWM
+    set_pwm(LED_BLUE_PIN, wrap);
+    set_pwm(LED_RED_PIN, wrap);
+    set_pwm(LED_GREEN_PIN, wrap);
+
+    int led_obstacle_count = 0;
+
+    while(true){
+        // Aumenta a intensidade do LED azul conforme a bateria descarrega
+        pwm_set_gpio_level(LED_BLUE_PIN, wrap*(1-(rover.battery/100)));
+
+        // Pisca o led nos alertas
+        if(rover.alert_obstacle){
+            pwm_set_gpio_level(LED_RED_PIN, wrap*0.05);
+            pwm_set_gpio_level(LED_GREEN_PIN, wrap*0.05);
+            vTaskDelay(pdMS_TO_TICKS(50));
+            pwm_set_gpio_level(LED_RED_PIN, 0);
+            pwm_set_gpio_level(LED_GREEN_PIN, 0);
+            vTaskDelay(pdMS_TO_TICKS(50));
+            pwm_set_gpio_level(LED_RED_PIN, wrap*0.05);
+            pwm_set_gpio_level(LED_GREEN_PIN, wrap*0.05);
+            vTaskDelay(pdMS_TO_TICKS(50));
+            pwm_set_gpio_level(LED_RED_PIN, 0);
+            pwm_set_gpio_level(LED_GREEN_PIN, 0);
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+}
+
 // FUNÇÃO PRINCIPAL =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 void main(){
     //Inicializa todos os tipos de bibliotecas stdio padrão presentes que estão ligados ao binário.
@@ -646,6 +677,7 @@ void main(){
     xTaskCreate(vBuzzerTask, "Buzzer Alert Task", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
     xTaskCreate(vBatteryDropTask, "Battery Drop Task", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
     xTaskCreate(vBitDogLabModeTask, "BitDogLab Mode Task", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
+    xTaskCreate(vLedRGBTask, "Led RGB Task", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
 
     vTaskStartScheduler();
     panic_unsupported();
