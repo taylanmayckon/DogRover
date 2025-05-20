@@ -33,6 +33,10 @@
 #define LED_GREEN_PIN 11                // GPIO11 - LED verde
 #define LED_RED_PIN 13                  // GPIO13 - LED vermelho
 
+// Buzzers
+#define BUZZER_A 21 
+#define BUZZER_B 10
+
 // Constantes para a matriz de leds
 #define IS_RGBW false
 #define LED_MATRIX_PIN 7
@@ -48,6 +52,10 @@ PIO pio;
 uint sm;
 // Booleano para o display
 bool cor = true;
+
+// Variáveis do PWM (setado para freq. de 312,5 Hz)
+uint wrap = 2000;
+uint clkdiv = 25;
 
 // Para descrever o rover
 typedef struct {
@@ -97,6 +105,16 @@ void user_request(char **request);
 
 
 // FUNÇÕES AUXILIARES =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+// Função para configurar o PWM e iniciar com 0% de DC
+void set_pwm(uint gpio, uint wrap){
+    gpio_set_function(gpio, GPIO_FUNC_PWM);
+    uint slice_num = pwm_gpio_to_slice_num(gpio);
+    pwm_set_clkdiv(slice_num, clkdiv);
+    pwm_set_wrap(slice_num, wrap);
+    pwm_set_enabled(slice_num, true); 
+    pwm_set_gpio_level(gpio, 0);
+}
+
 // Inicializar os Pinos GPIO para acionamento dos LEDs da BitDogLab
 void gpio_led_bitdog(void){
     // Configuração dos LEDs como saída
@@ -424,8 +442,36 @@ void vDisplayOLEDTask(){
     }
 }
 
+// Task para os alertas sonoros
+void vBuzzerTask(){
+    set_pwm(BUZZER_A, wrap);
+    set_pwm(BUZZER_B, wrap);
 
+    int buzzer_count = 0;
 
+    while(true){
+        // Quando algum alerta é acionado
+        if(rover.alert){
+            if(buzzer_count%2==0){
+                pwm_set_gpio_level(BUZZER_A, wrap*0.05);
+                pwm_set_gpio_level(BUZZER_B, wrap*0.05);
+            }
+            else{
+                pwm_set_gpio_level(BUZZER_A, 0);
+                pwm_set_gpio_level(BUZZER_B, 0);
+            }
+            buzzer_count++;
+
+            if(buzzer_count==4){ // Condição que para o alerta sonoro
+                buzzer_count=0;
+                rover.alert=false;
+            }
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(50)); // Pequeno delay para reduzir o consumo de CPU
+          
+    }
+}
 
 
 // FUNÇÃO PRINCIPAL =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -444,6 +490,7 @@ void main(){
     xTaskCreate(vWebServerTask, "Web Server Task", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
     xTaskCreate(vLedMatrixTask, "Led Matrix Task", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
     xTaskCreate(vDisplayOLEDTask, "Display OLED Task", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL); 
+    xTaskCreate(vBuzzerTask, "Buzzer Alert Task", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
 
     vTaskStartScheduler();
     panic_unsupported();
