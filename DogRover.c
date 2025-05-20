@@ -37,6 +37,10 @@
 #define BUZZER_A 21 
 #define BUZZER_B 10
 
+// Analogicos
+#define JOYSTICK_X 27
+#define JOYSTICK_Y 26
+
 // Constantes para a matriz de leds
 #define IS_RGBW false
 #define LED_MATRIX_PIN 7
@@ -545,6 +549,83 @@ void vBatteryDropTask(){
     }
 }
 
+// Task para controle manual
+void vBitDogLabModeTask(){
+    // Configurando o ADC
+    adc_init();
+    adc_gpio_init(JOYSTICK_X); // Canal 1
+    adc_gpio_init(JOYSTICK_Y); // Canal 0
+
+    int initial_pos;
+
+    while(true){
+        // Leitura do Eixo X (Canal 1)
+        adc_select_input(1);
+        uint16_t vrx_value = adc_read();
+        // Leitura do Eixo Y (Canal 0)
+        adc_select_input(0);
+        uint16_t vry_value = adc_read();
+
+        initial_pos = rover.position; // Armazena a posição inicial
+
+        // Caso não esteja no modo do web server
+        if(!rover.web){
+            grid[rover.position] = CELL_FREE; // Prepara o grid para o movimento
+
+            // Direita
+            if(vrx_value>3500){
+                if(rover.position % 5 != 4){ // Quando permite o movimento
+                    rover.position++;
+                }
+                else{ // Movimento invalido
+                    rover.alert_obstacle = true;
+                }
+            }
+            // Esquerda
+            else if(vrx_value<500){
+                if(rover.position % 5 != 0){ // Quando permite o movimento
+                    rover.position--;
+                }
+                else{ // Movimento invalido
+                    rover.alert_obstacle = true;
+                }
+            }
+
+            // Cima
+            if(vry_value>3500){
+                if(rover.position>=5){ // Quando permite o movimento
+                    rover.position-=5;
+                }
+                else{ // Movimento invalido
+                    rover.alert_obstacle = true;
+                }
+            }
+            // Baixo
+            else if(vry_value<500){
+                if(rover.position<=19){ // Quando permite o movimento
+                    rover.position+=5;
+                }
+                else{ // Movimento invalido
+                    rover.alert_obstacle=true;
+                }
+            }
+
+            if(grid[rover.position] == CELL_COLLECT){ // Incrementa caso tenha sido feita uma coleta
+                rover.collects++;
+                rover.alert_collect=true;
+            }
+
+            if(grid[rover.position] == CELL_OBSTACLE){ // Gera alerta e trava o rover caso tenha obstaculo no destino
+                rover.position = initial_pos;
+                rover.alert_obstacle=true;
+            }
+
+            grid[rover.position] = CELL_PLAYER; // Atualiza o GRID com a nova posição do player
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+}
 
 // FUNÇÃO PRINCIPAL =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 void main(){
@@ -564,6 +645,7 @@ void main(){
     xTaskCreate(vDisplayOLEDTask, "Display OLED Task", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL); 
     xTaskCreate(vBuzzerTask, "Buzzer Alert Task", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
     xTaskCreate(vBatteryDropTask, "Battery Drop Task", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
+    xTaskCreate(vBitDogLabModeTask, "BitDogLab Mode Task", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
 
     vTaskStartScheduler();
     panic_unsupported();
