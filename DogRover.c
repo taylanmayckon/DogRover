@@ -183,14 +183,6 @@ void user_request(char **request){
             rover.alert = true;
         }
     }
-    // Coletar
-    else if (strstr(*request, "GET /collect") != NULL){
-        gpio_put(LED_RED_PIN, 1);
-    }
-    // Automatico
-    else if (strstr(*request, "GET /local") != NULL){
-        gpio_put(LED_RED_PIN, 0);
-    }
 
     // Relacionados ao módulo Wi-Fi
     else if (strstr(*request, "GET /on") != NULL){
@@ -198,6 +190,11 @@ void user_request(char **request){
     }
     else if (strstr(*request, "GET /off") != NULL){
         cyw43_arch_gpio_put(LED_PIN, 0);
+    }
+
+    if(grid[rover.position] == CELL_COLLECT){ // Incrementa caso tenha sido feita uma coleta
+        rover.collects++;
+        rover.alert=true;
     }
 
     grid[rover.position] = CELL_PLAYER; // Atualiza o GRID com a nova posição do player
@@ -261,9 +258,6 @@ static err_t tcp_server_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, er
         "<form action='./right'><button>Direita &#8594;</button></form>\n"
         "<form action='./down'><button>&#8595; Baixo</button></form>\n"
         "</div>\n"
-        "<p class=\"subtitle\">Acoes</p>\n"
-        "<form action='./collect'><button>Coletar</button></form>\n"
-        "<form action='./local'><button>Local</button></form>\n"
         "<p class=\"subtitle\">Bateria: %.2f %%</p>\n"
         "<p class=\"subtitle\">Materiais coletados: %d</p>\n"
         "<p class=\"subtitle\">Temperatura do Robo: %.2f &deg;C</p>\n"
