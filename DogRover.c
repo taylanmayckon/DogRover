@@ -663,9 +663,6 @@ void main(){
     //Inicializa todos os tipos de bibliotecas stdio padrão presentes que estão ligados ao binário.
     stdio_init_all();
 
-    // Inicializar os Pinos GPIO para acionamento dos LEDs da BitDogLab
-    gpio_led_bitdog();
-
     // Inicializa o conversor ADC
     adc_init();
     adc_set_temp_sensor_enabled(true);
